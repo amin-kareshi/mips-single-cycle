@@ -110,9 +110,3 @@ The included example demonstrates:
 - Python
 - Icarus Verilog
 - GTKWave
-
----
-
-## Author
-
-Amin Karashi
