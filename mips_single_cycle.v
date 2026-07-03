@@ -125,3 +125,62 @@ module ALUCtrl (
         endcase
     end
 endmodule
+
+// Control Unit
+
+module CtrlUnit (
+    input  [5:0] opcode,
+    output reg   RegDst,
+    output reg   ALUSrc,
+    output reg   MemtoReg,
+    output reg   RegWrite,
+    output reg   MemRead,
+    output reg   MemWrite,
+    output reg   Branch,
+    output reg   Jump,
+    output reg [1:0] ALUOp
+);
+    always @(*) begin
+        // defaults
+        RegDst=0; ALUSrc=0; MemtoReg=0; RegWrite=0;
+        MemRead=0; MemWrite=0; Branch=0; Jump=0; ALUOp=2'b00;
+        case (opcode)
+            6'b000000: begin
+                RegDst=1; RegWrite=1; ALUOp=2'b10;
+            end
+            6'b100011: begin
+                ALUSrc=1; MemtoReg=1; RegWrite=1; MemRead=1; ALUOp=2'b00;
+            end
+            6'b101011: begin 
+                ALUSrc=1; MemWrite=1; ALUOp=2'b00;
+            end
+            6'b000100: begin 
+                Branch=1; ALUOp=2'b01;
+            end
+            6'b000010: begin
+                Jump=1;
+            end
+            default: ; 
+        endcase
+    end
+endmodule
+
+//  Data Memory
+
+module DataMem (
+    input         clk,
+    input         MemRead,
+    input         MemWrite,
+    input  [31:0] addr,
+    input  [31:0] write_data,
+    output [31:0] read_data
+);
+    reg [31:0] mem [0:63];
+    integer i;
+    initial for (i = 0; i < 64; i = i + 1) mem[i] = 32'b0;
+
+    always @(posedge clk)
+        if (MemWrite) mem[addr[31:2]] <= write_data;
+
+    assign read_data = MemRead ? mem[addr[31:2]] : 32'b0;
+endmodule
