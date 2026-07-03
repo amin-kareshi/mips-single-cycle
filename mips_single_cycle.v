@@ -184,3 +184,71 @@ module DataMem (
 
     assign read_data = MemRead ? mem[addr[31:2]] : 32'b0;
 endmodule
+
+
+module MIPS (
+    input clk,
+    input reset
+);
+    // Fetch
+    wire [31:0] pc_current, pcounter_plus4, pc_next, pc_branch, pc_branchmux, pc_jump;
+    wire [31:0] instruction;
+
+    PCounter pc_reg (.clk(clk), .reset(reset), .pc_next(pc_next), .pc(pc_current));
+    assign pcounter_plus4 = pc_current + 32'd4;
+    InstMem imem (.addr(pc_current), .instruction(instruction));
+
+    // Instruction fields
+    wire [5:0] opcode = instruction[31:26];
+    wire [4:0] rs     = instruction[25:21];
+    wire [4:0] rt     = instruction[20:16];
+    wire [4:0] rd     = instruction[15:11];
+    wire [5:0] funct  = instruction[5:0];
+    wire [15:0] imm16 = instruction[15:0];
+
+    // Control
+    wire RegDst, ALUSrc, MemtoReg, RegWrite, MemRead, MemWrite, Branch, Jump;
+    wire [1:0] ALUOp;
+    CtrlUnit ctrl (
+        .opcode(opcode), .RegDst(RegDst), .ALUSrc(ALUSrc), .MemtoReg(MemtoReg),
+        .RegWrite(RegWrite), .MemRead(MemRead), .MemWrite(MemWrite),
+        .Branch(Branch), .Jump(Jump), .ALUOp(ALUOp)
+    );
+
+    // Register file
+    wire [4:0]  write_reg = RegDst ? rd : rt;
+    wire [31:0] read_data1, read_data2, write_data;
+    RegFile rf (
+        .clk(clk), .reset(reset), .RegWrite(RegWrite),
+        .read_reg1(rs), .read_reg2(rt), .write_reg(write_reg),
+        .write_data(write_data), .read_data1(read_data1), .read_data2(read_data2)
+    );
+
+    // Sign extend
+    wire [31:0] sign_ext = {{16{imm16[15]}}, imm16};
+
+    // ALU
+    wire [31:0] alu_b = ALUSrc ? sign_ext : read_data2;
+    wire [3:0]  alu_ctrl;
+    wire [31:0] alu_result;
+    wire        zero;
+    ALUCtrl aluctl (.ALUOp(ALUOp), .funct(funct), .alu_ctrl(alu_ctrl));
+    ALU alu (.a(read_data1), .b(alu_b), .alu_ctrl(alu_ctrl),
+             .result(alu_result), .zero(zero));
+
+    // Data memory
+    wire [31:0] mem_read_data;
+    DataMem dmem (
+        .clk(clk), .MemRead(MemRead), .MemWrite(MemWrite),
+        .addr(alu_result), .write_data(read_data2), .read_data(mem_read_data)
+    );
+
+    assign write_data = MemtoReg ? mem_read_data : alu_result;
+
+    assign pc_branch     = pcounter_plus4 + (sign_ext << 2);
+    wire branch_taken    = Branch & zero;
+    assign pc_branchmux  = branch_taken ? pc_branch : pcounter_plus4;
+    assign pc_jump       = {pcounter_plus4[31:28], instruction[25:0], 2'b00};
+    assign pc_next       = Jump ? pc_jump : pc_branchmux;
+
+endmodule
