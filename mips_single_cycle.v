@@ -76,3 +76,52 @@ module PCounter (
         else       pc <= pc_next;
     end
 endmodule
+// ALU 
+
+module ALU (
+    input  [31:0] a,
+    input  [31:0] b,
+    input  [3:0]  alu_ctrl,
+    output reg [31:0] result,
+    output        zero
+);
+    always @(*) begin
+        case (alu_ctrl)
+            4'b0000: result = a & b;
+            4'b0001: result = a | b;
+            4'b0010: result = a + b;
+            4'b0110: result = a - b;
+            4'b0111: result = ($signed(a) < $signed(b)) ? 32'd1 : 32'd0;
+            4'b1100: result = ~(a | b);
+            default: result = 32'b0;
+        endcase
+    end
+    assign zero = (result == 32'b0);
+endmodule
+
+
+// ALU Control
+
+module ALUCtrl (
+    input  [1:0] ALUOp,
+    input  [5:0] funct,
+    output reg [3:0] alu_ctrl
+);
+    always @(*) begin
+        case (ALUOp)
+            2'b00: alu_ctrl = 4'b0010;            
+            2'b01: alu_ctrl = 4'b0110;            
+            2'b10: begin                         
+                case (funct)
+                    6'b100000: alu_ctrl = 4'b0010; // add
+                    6'b100010: alu_ctrl = 4'b0110; // sub
+                    6'b100100: alu_ctrl = 4'b0000; // and
+                    6'b100101: alu_ctrl = 4'b0001; // or
+                    6'b101010: alu_ctrl = 4'b0111; // slt
+                    default:   alu_ctrl = 4'b0000;
+                endcase
+            end
+            default: alu_ctrl = 4'b0000;
+        endcase
+    end
+endmodule
